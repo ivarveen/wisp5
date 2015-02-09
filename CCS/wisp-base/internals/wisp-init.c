@@ -41,21 +41,23 @@ volatile uint8_t isDoingLowPwrSleep;
  */
 void WISP_init(void) {
 
-    //----------------------------------------Setup Watchdog, IO--------------------------------------------------------------------//
-    WDTCTL = WDTPW + WDTHOLD;                                               /* disable the watchdog timer                           */
+	WDTCTL = WDTPW | WDTHOLD;	// Stop watchdog timer
 
-    setupDflt_IO();
+	// Disable the GPIO power-on default high-impedance mode to activate previously configured port settings.
+	PM5CTL0 &= ~LOCKLPM5;		// Lock LPM5.
 
-    // Disable the GPIO power-on default high-impedance mode to activate previously configured port settings.
-    PM5CTL0 &= ~LOCKLPM5;
+	// Disable FRAM wait cycles to allow clock operation over 8MHz
+	FRCTL0 = 0xA500 | ((1) << 4);  //FRCTLPW | NWAITS_1;
 
-//  PHOLDOUT |= PIN_HOLD;                                                   /* Hold the LDO ON                                      */
+	// Setup default IO
+	setupDflt_IO();
+
     PRXEOUT |= PIN_RX_EN; /** TODO: enable PIN_RX_EN only when needed in the future */
 
-    // TODO Try running the system as fast as possible here for power savings
     CSCTL0_H = 0xA5;
-    CSCTL1 = DCOFSEL0 + DCOFSEL1; //4MHz
-    CSCTL2 = SELA_0 + SELS_3 + SELM_3;
+    CSCTL1 = DCORSEL + DCOFSEL_3; //8MHz
+    CSCTL2 = SELA_0 + SELM_3;
+    CSCTL2 |= SELS_3;
     CSCTL3 = DIVA_0 + DIVS_0 + DIVM_0;
 
     // Initialize Gen2 standard memory banks
