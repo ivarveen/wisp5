@@ -126,6 +126,7 @@ typedef struct {
     uint16_t*    bwrBufPtr;                  /* for BlockWrite this will hold a pointer to the data buffer containing write data */
 
     //Function Hooks
+    void*       *rnHook;
     void*       *akHook;                    /* this function is called with no params or return after an ack command response   */
     void*       *wrHook;                    /* this function is called with no params or return after a write command response  */
     void*       *bwrHook;                   /* this function is called with no params or return after a write command response  */

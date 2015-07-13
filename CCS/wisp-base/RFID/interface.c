@@ -21,6 +21,13 @@ void WISP_getDataBuffers(WISP_dataStructInterface_t* clientStruct) {
 }
 
 /**
+ *  Registers a callback for RN16 event
+ */
+void WISP_registerCallback_RN16(void(*fnPtr)(void)){
+    RWData.rnHook = ((void*)(fnPtr));
+}
+
+/**
  *  Registers a callback for ACK event
  */
 void WISP_registerCallback_ACK(void(*fnPtr)(void)){

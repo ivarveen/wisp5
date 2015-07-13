@@ -35,6 +35,7 @@ typedef struct {
 extern void WISP_doRFID(void);
 
 // Callback registration
+void WISP_registerCallback_RN16(void(*fnPtr)(void));
 void WISP_registerCallback_ACK(void(*fnPtr)(void));
 void WISP_registerCallback_READ(void(*fnPtr)(void));
 void WISP_registerCallback_WRITE(void(*fnPtr)(void));

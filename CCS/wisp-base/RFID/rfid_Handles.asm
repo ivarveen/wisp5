@@ -81,6 +81,11 @@ QRTimingLoop:
 	MOV.B	rfid.TRext,	R15			;[3] load TRext
 	CALLA	#TxFM0					;[5] call the routine @us@todo: need to check RN16 in the future, fake TxFM0 in TX
 
+	;Call RN16 callback
+	MOV			&(RWData.rnHook), R_scratch0 ;[]
+
+	CALLA		R_scratch0			;[] Can mangle R12-R1
+
 	;Restore faster Rx Clock
 	;MOV		&(INFO_ADDR_RXUCS0), &UCSCTL0 ;[] switch to corr Rx Frequency
 	;MOV		&(INFO_ADDR_RXUCS1), &UCSCTL1 ;[] ""
@@ -253,6 +258,11 @@ queryTimingLoop:
 	MOV		#(0),			R14		;[1] load numBits=0
 	MOV.B	rfid.TRext,		R15		;[3] load TRext
 	CALLA	#TxFM0					;[5] call the routine
+
+	;Call RN16 callback
+	MOV			&(RWData.rnHook), R_scratch0 ;[]
+
+	CALLA		R_scratch0			;[] Can mangle R12-R1
 
 
 	;Restore faster Rx Clock
@@ -455,6 +465,11 @@ QATimingLoop:
 	MOV.B	rfid.TRext,	R15			;[3] load TRext
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;NO HIT
 	CALLA	#TxFM0					;[5] call the routine
+
+	;Call RN16 callback
+	MOV			&(RWData.rnHook), R_scratch0 ;[]
+
+	CALLA		R_scratch0			;[] Can mangle R12-R1
 
 	;Restore faster Rx Clock
 	;MOV		&(INFO_ADDR_RXUCS0), &UCSCTL0 ;[] switch to corr Rx Frequency
