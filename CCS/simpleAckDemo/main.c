@@ -151,12 +151,12 @@ void INT_Timer2A0(void) {
         }
         /* /REMOVE */
 
-        if (acksum*3 > rnsum)
+        if ((rnsum > 0) && (acksum * 4 >= rnsum))
             BITSET(PLED1OUT, PIN_LED1);
         else
             BITCLR(PLED1OUT, PIN_LED1);
 
-        if (acksum > (10*WINDOWSIZE))
+        if (acksum >= Messages_per_Transmission)
             BITSET(PLED2OUT, PIN_LED2);
         else
             BITCLR(PLED2OUT, PIN_LED2);
@@ -237,7 +237,8 @@ void main(void) {
         // TRANSMIT RFID
         start_timeoutClock();
         WISP_doRFID();
-        stop_timeoutClock();
+        //stop_timeoutClock();
+        //shiftWindow();
 
         // WAIT FOR TIMER
         while (!go) {

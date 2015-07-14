@@ -63,7 +63,7 @@
 #define TX_TIMING_READ  (29)//58.0us
 #define TX_TIMING_WRITE (31)//60.4us
 
-#define QUERY_TIMEOUT_PERIOD (65535)
+#define QUERY_TIMEOUT_PERIOD (16383)
 
 //PROTOCOL DEFS---------------------------------------------------------------------------------------------------------------------//
 //(if # is rounded to 8 that is so  cmd[n] was finished being shifted in)
