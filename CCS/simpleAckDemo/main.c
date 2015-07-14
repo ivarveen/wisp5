@@ -128,6 +128,7 @@ volatile uint16_t go = 0; // use counter instead of on/off to detect overrun/ove
 __interrupt
 void INT_Timer2A0(void) {
     static uint16_t multiplier_count = 0;
+    static uint8_t breakpoint_countdown = 0;
 
     TA2CCR0 += Transmission_Timer_Period;
 
@@ -142,6 +143,13 @@ void INT_Timer2A0(void) {
             acksum += ackwindow[i - 1];
             rnsum += rnwindow[i - 1];
         }
+
+        /* REMOVE */
+        if (breakpoint_countdown++ >= 10) {
+            asm(" NOP");
+            breakpoint_countdown = 0;
+        }
+        /* /REMOVE */
 
         if (acksum*3 > rnsum)
             BITSET(PLED1OUT, PIN_LED1);
@@ -208,8 +216,8 @@ void main(void) {
 
     // Set up EPC
     wispData.epcBuf[0] = 0x00; 		// Tag type
-    wispData.epcBuf[1] = 0;			// Unused data field
-    wispData.epcBuf[2] = 0;			// Unused data field
+    wispData.epcBuf[1] = 0x11;		// Unused data field
+    wispData.epcBuf[2] = 0x22;		// Unused data field
     wispData.epcBuf[3] = 0;			// Unused data field
     wispData.epcBuf[4] = 0;			// Unused data field
     wispData.epcBuf[5] = 0;			// Unused data field
