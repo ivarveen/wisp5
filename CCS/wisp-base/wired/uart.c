@@ -23,6 +23,19 @@ struct {
 } UART_SM;
 
 /**
+ * Configure the internal clocks for UART transmission.
+ *
+ * @todo This is not a fix, it only hides the real problem. See UART_init() todo.
+ */
+void UART_setClock(void) {
+    CSCTL0_H = 0xA5;
+    CSCTL1 = DCORSEL + DCOFSEL_3; //8MHz
+    CSCTL2 = SELA_0 + SELM_3;
+    CSCTL2 |= SELS_3;
+    CSCTL3 = DIVA_0 + DIVS_0 + DIVM_0;
+}
+
+/**
  * Configure the eUSCI_A0 module in UART mode and prepare for UART transmission.
  *
  * @todo Currently assumes an 8MHz SMCLK. Make robust to clock frequency changes by using 32k ACLK.

@@ -16,6 +16,8 @@ volatile uint16_t ackwindow[WINDOWSIZE] = { 0 };
 volatile uint16_t rnwindow[WINDOWSIZE] = { 0 };
 volatile uint8_t window_index = 0;
 
+volatile uint8_t use_wisp = 1;
+
 void shiftWindow(void) {
     if ((window_index + 1) < WINDOWSIZE)
         window_index++;
@@ -29,17 +31,18 @@ void shiftWindow(void) {
 #define CEIL_DIV(A, B)  ((((A) - 1) / (B)) + 1)
 
 // Transmission period is defined by Period and Multiplier, with Period <= 2sec
-#define Transmission_Period         (1*LP_LSDLY_1S) // 32kHz ticks
-#define Transmission_Timer_Period   (LP_LSDLY_1S)   // 32kHz ticks (<= 2sec)
+#define Transmission_Period         (1*LP_LSDLY_1S)     // 32kHz ticks (multiple of Transmission_Timer_Period)
+#define Transmission_Timer_Period   (LP_LSDLY_1S)       // 32kHz ticks (<= 2sec)
 #define Transmission_Multiplier     CEIL_DIV(Transmission_Period, Transmission_Timer_Period)
 
 // Message size per transmission is defined is defined as usefull bytes per message
 // and bytes per transmission, with bytes per message <=12
-#define Bytes_per_Message           (12)        // #bytes/EPC (<= 12)
-#define Bytes_per_Transmission      (120)       // #bytes/transmission
+#define Bytes_per_Message           (12)                // #bytes/EPC (<= 12)
+#define Bytes_per_Transmission      (120)               // #bytes/transmission
 #define Messages_per_Transmission   CEIL_DIV(Bytes_per_Transmission, Bytes_per_Message)
 
 #define Window_Timer_Period         (LP_LSDLY_100MS)    // 32kHz ticks (<= 2sec)
+#define Window_ForceWISP_Period     (5)                 // #transmissions
 
 void my_rn16Callback(void) {
     rnwindow[window_index]++;
@@ -83,7 +86,7 @@ void my_writeCallback(void) {
 /** 
  * This function is called by WISP FW after a successful BlockWrite
  *  command decode
-
+ *
  */
 void my_blockWriteCallback(void) {
     asm(" NOP");
@@ -151,15 +154,33 @@ void INT_Timer2A0(void) {
         }
         /* /REMOVE */
 
-        if ((rnsum > 0) && (acksum * 4 >= rnsum))
-            BITSET(PLED1OUT, PIN_LED1);
-        else
-            BITCLR(PLED1OUT, PIN_LED1);
+        uint8_t wisp_quality = 0;
 
-        if (acksum >= Messages_per_Transmission)
-            BITSET(PLED2OUT, PIN_LED2);
-        else
-            BITCLR(PLED2OUT, PIN_LED2);
+        if ((rnsum > 0) && (acksum * 4 >= rnsum)) {
+            //    BITSET(PLED1OUT, PIN_LED1);
+            wisp_quality++;
+        } //else
+          //  BITCLR(PLED1OUT, PIN_LED1);
+
+        if (acksum >= Messages_per_Transmission) {
+            //    BITSET(PLED2OUT, PIN_LED2);
+            wisp_quality++;
+        } //else
+          //  BITCLR(PLED2OUT, PIN_LED2);
+
+        use_wisp = (wisp_quality >= 2);
+
+        if (use_wisp) {
+            // disable BLE
+            uint8_t m[] = "D";
+            UART_setClock();
+            UART_critSend(m, sizeof(m));
+        } else {
+            // enable BLE
+            uint8_t m[] = "U";
+            UART_setClock();
+            UART_critSend(m, sizeof(m));
+        }
 
         if (go < ((uint16_t) -1))
             go++;
@@ -211,7 +232,7 @@ void main(void) {
     WISP_getDataBuffers(&wispData);
 
     // Set up operating parameters for WISP comm routines
-    WISP_setMode( MODE_READ | MODE_WRITE | MODE_USES_SEL);
+    WISP_setMode( MODE_READ | MODE_WRITE);// | MODE_USES_SEL);
     WISP_setAbortConditions(0); //CMD_ID_READ | CMD_ID_WRITE /*| CMD_ID_ACK*/);
 
     // Set up EPC
@@ -228,17 +249,18 @@ void main(void) {
     wispData.epcBuf[10] = *((uint8_t*) INFO_WISP_TAGID + 1); // WISP ID MSB: Pull from INFO seg
     wispData.epcBuf[11] = *((uint8_t*) INFO_WISP_TAGID); // WISP ID LSB: Pull from INFO seg
 
+    UART_init();
+
     init_clocks();
     start_intervalClock();
-    stop_timeoutClock();
+    //stop_timeoutClock();
 
     // Talk to the RFID reader.
     while (FOREVER) {
-        // TRANSMIT RFID
+
+        // enable WISP
         start_timeoutClock();
         WISP_doRFID();
-        //stop_timeoutClock();
-        //shiftWindow();
 
         // WAIT FOR TIMER
         while (!go) {
@@ -248,5 +270,6 @@ void main(void) {
             LPM4; // LPM3 ?
         }
         go = 0;
+
     }
 }
