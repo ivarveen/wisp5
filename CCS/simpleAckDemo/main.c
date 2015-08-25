@@ -46,6 +46,10 @@ void shiftWindow(void) {
 #define Window_Timer_Period         (LP_LSDLY_50MS + LP_LSDLY_1MS)    // 32kHz ticks (<= 2sec)
 #define Window_ForceWISP_Period     (5)                 // #transmissions
 
+/**
+ * This function is called by WISP FW after a successful RN16 transmission
+ *
+ */
 void my_rn16Callback(void) {
     rnwindow[window_index]++;
 }
