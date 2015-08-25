@@ -4,6 +4,7 @@
  * @details    The WISP application developer's implementation goes here.
  *
  * @author     Aaron Parks, UW Sensor Systems Lab
+ * @author     Ivar in 't Veen, TU Delft Embedded Software Group
  *
  */
 
@@ -17,6 +18,7 @@ volatile uint16_t rnwindow[WINDOWSIZE] = { 0 };
 volatile uint8_t window_index = 0;
 
 volatile uint8_t use_wisp = 1;
+volatile uint16_t sensor = 0;
 
 void shiftWindow(void) {
     if ((window_index + 1) < WINDOWSIZE)
@@ -31,17 +33,17 @@ void shiftWindow(void) {
 #define CEIL_DIV(A, B)  ((((A) - 1) / (B)) + 1)
 
 // Transmission period is defined by Period and Multiplier, with Period <= 2sec
-#define Transmission_Period         (1*LP_LSDLY_1S)     // 32kHz ticks (multiple of Transmission_Timer_Period)
-#define Transmission_Timer_Period   (LP_LSDLY_1S)       // 32kHz ticks (<= 2sec)
+#define Transmission_Period         (LP_LSDLY_500MS)    // 32kHz ticks (multiple of Transmission_Timer_Period)
+#define Transmission_Timer_Period   (LP_LSDLY_500MS)    // 32kHz ticks (<= 2sec)
 #define Transmission_Multiplier     CEIL_DIV(Transmission_Period, Transmission_Timer_Period)
 
 // Message size per transmission is defined is defined as usefull bytes per message
 // and bytes per transmission, with bytes per message <=12
 #define Bytes_per_Message           (12)                // #bytes/EPC (<= 12)
-#define Bytes_per_Transmission      (120)               // #bytes/transmission
+#define Bytes_per_Transmission      (24)                // #bytes/transmission
 #define Messages_per_Transmission   CEIL_DIV(Bytes_per_Transmission, Bytes_per_Message)
 
-#define Window_Timer_Period         (LP_LSDLY_100MS)    // 32kHz ticks (<= 2sec)
+#define Window_Timer_Period         (LP_LSDLY_50MS + LP_LSDLY_1MS)    // 32kHz ticks (<= 2sec)
 #define Window_ForceWISP_Period     (5)                 // #transmissions
 
 void my_rn16Callback(void) {
@@ -135,6 +137,8 @@ void INT_Timer2A0(void) {
 
     TA2CCR0 += Transmission_Timer_Period;
 
+    sensor += 1; // next tick for improvised sensor
+
     if (++multiplier_count >= Transmission_Multiplier) {
         multiplier_count = 0;
 
@@ -168,19 +172,24 @@ void INT_Timer2A0(void) {
         } //else
           //  BITCLR(PLED2OUT, PIN_LED2);
 
-        use_wisp = (wisp_quality >= 2);
+        use_wisp = (wisp_quality >= 1);
+
+        uint8_t m[] = "000";
 
         if (use_wisp) {
             // disable BLE
-            uint8_t m[] = "D";
-            UART_setClock();
-            UART_critSend(m, sizeof(m));
+            m[0] = 'D';
+            m[1] = (sensor >> 8) & 0xFF;
+            m[2] = (sensor >> 0) & 0xFF;
         } else {
             // enable BLE
-            uint8_t m[] = "U";
-            UART_setClock();
-            UART_critSend(m, sizeof(m));
+            m[0] = 'U';
+            m[1] = (sensor >> 8) & 0xFF;
+            m[2] = (sensor >> 0) & 0xFF;
         }
+
+        UART_setClock();
+        UART_critSend(m, sizeof(m));
 
         if (go < ((uint16_t) -1))
             go++;
@@ -232,22 +241,18 @@ void main(void) {
     WISP_getDataBuffers(&wispData);
 
     // Set up operating parameters for WISP comm routines
-    WISP_setMode( MODE_READ | MODE_WRITE);// | MODE_USES_SEL);
+    WISP_setMode( MODE_READ | MODE_WRITE); // | MODE_USES_SEL);
     WISP_setAbortConditions(0); //CMD_ID_READ | CMD_ID_WRITE /*| CMD_ID_ACK*/);
 
     // Set up EPC
-    wispData.epcBuf[0] = 0x00; 		// Tag type
-    wispData.epcBuf[1] = 0x11;		// Unused data field
-    wispData.epcBuf[2] = 0x22;		// Unused data field
-    wispData.epcBuf[3] = 0;			// Unused data field
-    wispData.epcBuf[4] = 0;			// Unused data field
-    wispData.epcBuf[5] = 0;			// Unused data field
-    wispData.epcBuf[6] = 0;			// Unused data field
-    wispData.epcBuf[7] = 0x00;		// Unused data field
-    wispData.epcBuf[8] = 0x00;		// Unused data field
-    wispData.epcBuf[9] = 0x51;		// Tag hardware revision (5.1)
-    wispData.epcBuf[10] = *((uint8_t*) INFO_WISP_TAGID + 1); // WISP ID MSB: Pull from INFO seg
-    wispData.epcBuf[11] = *((uint8_t*) INFO_WISP_TAGID); // WISP ID LSB: Pull from INFO seg
+    uint8_t epcidx = 0;
+
+    wispData.epcBuf[epcidx++] = 0x00;      // Log identifier beacon
+    wispData.epcBuf[epcidx++] = 0x11;      // Log identifier beacon
+    wispData.epcBuf[epcidx++] = 0x22;      // Log identifier beacon
+
+    for (; epcidx < (DATABUFF_SIZE - 4); epcidx++)
+        wispData.epcBuf[epcidx] = epcidx;  // Unused data field
 
     UART_init();
 
@@ -261,6 +266,27 @@ void main(void) {
         // enable WISP
         start_timeoutClock();
         WISP_doRFID();
+
+        // EVALUATE RFID STATUS
+        uint16_t acksum = 0;
+        uint16_t rnsum = 0;
+        uint8_t i;
+        for (i = WINDOWSIZE; i > 0; i--) {
+            acksum += ackwindow[i - 1];
+            rnsum += rnwindow[i - 1];
+        }
+
+        wispData.epcBuf[3] = (sensor >> 8) & 0xFF;
+        wispData.epcBuf[4] = (sensor >> 0) & 0xFF;
+
+        wispData.epcBuf[5] = (acksum >> 8) & 0xFF;
+        wispData.epcBuf[6] = (acksum >> 0) & 0xFF;
+        wispData.epcBuf[7] = (rnsum >> 8) & 0xFF;
+        wispData.epcBuf[8] = (rnsum >> 0) & 0xFF;
+
+        wispData.epcBuf[9] = (0x51); // Tag hardware revision (5.1)
+        wispData.epcBuf[10] = *((uint8_t*) INFO_WISP_TAGID + 1); // WISP ID MSB: Pull from INFO seg
+        wispData.epcBuf[11] = *((uint8_t*) INFO_WISP_TAGID); // WISP ID LSB: Pull from INFO seg
 
         // WAIT FOR TIMER
         while (!go) {
