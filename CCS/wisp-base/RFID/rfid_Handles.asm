@@ -79,7 +79,7 @@ QRTimingLoop:
 	MOV		#(2),		R13			;[1] load into corr reg (numBytes)
 	MOV		#(0),		R14			;[1] load numBits=0
 	MOV.B	rfid.TRext,	R15			;[3] load TRext
-	CALLA	#TxFM0					;[5] call the routine @us@todo: need to check RN16 in the future, fake TxFM0 in TX
+	CALLA	#TX						;[5] call the routine @us@todo: need to check RN16 in the future, fake TxFM0 in TX
 
 	;Restore faster Rx Clock
 	;MOV		&(INFO_ADDR_RXUCS0), &UCSCTL0 ;[] switch to corr Rx Frequency
@@ -256,7 +256,7 @@ queryTimingLoop:
 	MOV		#(2),			R13		;[1] load into corr reg (numBytes)
 	MOV		#(0),			R14		;[1] load numBits=0
 	MOV.B	rfid.TRext,		R15		;[3] load TRext
-	CALLA	#TxFM0					;[5] call the routine
+	CALLA	#TX						;[5] call the routine
 
 
 	;Restore faster Rx Clock
@@ -337,7 +337,7 @@ ackTimingLoop:
 
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;NO HIT
 
-	CALLA	#TxFM0					;[5] call transmit routine
+	CALLA	#TX						;[5] call transmit routine
 
 	;Restore faster Rx Clock
 	;/** @todo Should we do this now, or at the top of keepDoingRFID? */
@@ -464,7 +464,7 @@ QATimingLoop:
 	MOV		#(0),		R14			;[1] load numBits=0
 	MOV.B	rfid.TRext,	R15			;[3] load TRext
 	;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;NO HIT
-	CALLA	#TxFM0					;[5] call the routine
+	CALLA	#TX						;[5] call the routine
 
 	;Restore faster Rx Clock
 	;MOV		&(INFO_ADDR_RXUCS0), &UCSCTL0 ;[] switch to corr Rx Frequency
@@ -565,7 +565,7 @@ REQRNTimingLoop:
 	MOV		#(0),		R14			;[1] load numBits=0
 	MOV.B	rfid.TRext,	R15			;[3] load TRext
 ;;;;;;;;;;;;;;;;;;;;;;; NO HIT
-	CALLA	#TxFM0					;[5] call the routine
+	CALLA	#TX						;[5] call the routine
 
 	;Restore faster Rx Clock
 	;MOV		&(INFO_ADDR_RXUCS0), &UCSCTL0 ;[] switch to corr Rx Frequency

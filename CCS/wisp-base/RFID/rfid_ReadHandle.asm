@@ -393,8 +393,8 @@ timing_delay_for_Read:
 	
 	MOV.B	rfid.TRext,	R15			;[3] load TRext
 	
-	CALLA	#TxFM0					;[5] call the routine
-	;TxFM0(volatile uint8_t *data,uint8_t numBytes,uint8_t numBits,uint8_t TRext);
+	CALLA	#TX						;[5] call the routine
+	;TX(volatile uint8_t *data,uint8_t numBytes,uint8_t numBits,uint8_t TRext);
 	;exit: state stays as Open!
 
 	;Done with the read!

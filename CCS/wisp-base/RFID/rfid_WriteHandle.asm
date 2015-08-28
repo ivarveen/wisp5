@@ -204,8 +204,8 @@ timing_delay_for_Write:
 	MOV		#1,			R14			;[1] load numBits=1
 	MOV.B	#TREXT_ON,	R15			;[3] load TRext (write always uses trext=1. wtf)
 
-	CALLA	#TxFM0					;[5] call the routine
-	;TxFM0(volatile uint8_t *data,uint8_t numBytes,uint8_t numBits,uint8_t TRext);
+	CALLA	#TX						;[5] call the routine
+	;TX(volatile uint8_t *data,uint8_t numBytes,uint8_t numBits,uint8_t TRext);
 	;exit: state stays as Open!
 
 	;/** @todo Should we do this now, or at the top of keepDoingRFID? */

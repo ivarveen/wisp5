@@ -198,7 +198,7 @@ respond_to_BlockWrite:
 	MOV     #1, R_scratch1                                  ;[1] load numBits=1
 	MOV.B   #TREXT_ON, R_scratch0                           ;[3] load TRext
 
-	CALLA   #TxFM0                                          ;[5] Send response.
+	CALLA   #TX                                             ;[5] Send response.
 
 ; TODO: In what order do we receive the words!? Figure out correct stop condition.
 ; Experimental, breaks BlockWrite atm... pls fix.
