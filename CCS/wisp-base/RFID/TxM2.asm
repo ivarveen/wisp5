@@ -40,6 +40,66 @@ R_TRext     .set    R15             ; Entry: TRext? is in R_TRext
     ;*   Cycles Before First Bit Toggle: 29 worst case                                                                              */
 
 ;/Begin ASM Code----------------------------------------------------------------------------------------------------------------------
+send_bit  .macro miller=2, data=0
+    .set drep, (\\miller - 1)
+
+    XOR     \\data, R_scratch0      ;[1]
+    MOV.B   R_scratch0, &PTXOUT     ;[4]
+
+    .rept (drep)
+        NOPx4                           ;[4]
+        INV     R_scratch0              ;[1]
+        MOV.B   R_scratch0, &PTXOUT     ;[4]
+    .endr
+
+    NOPx3                           ;[3]
+    INV     R_scratch0              ;[1]
+    XOR     \\data, R_scratch0      ;[1]
+    MOV.B   R_scratch0, &PTXOUT     ;[4]
+
+    .rept (drep)
+        NOPx4                           ;[4]
+        INV     R_scratch0              ;[1]
+        MOV.B   R_scratch0, &PTXOUT     ;[4]
+    .endr
+
+    ;NOPx4                           ;[4]
+.endm
+
+send_byte  .macro
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    NOPx4                           ;[4]
+
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    NOPx4                           ;[4]
+
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    NOPx4                           ;[4]
+
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    NOPx4                           ;[4]
+
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    NOPx4                           ;[4]
+
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    NOPx4                           ;[4]
+
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    NOPx4                           ;[4]
+
+    send_bit 2, R_currByte          ;[14 + (18*(miller-1))]
+    ADD     R_currByte, R_currByte  ;[1]
+    ;NOPx4                           ;[4] four free cycles!
+.endm
+
     .def  TxM2
 
 TxM2:
@@ -88,61 +148,25 @@ M2_Send_A_Pilot_Tone:
 ;/ tx sequence: 000...[0/1/0/1/1/1] or encoded as -> [HLHL/HLLH/LHLH/LHHL/HLLH/LHHL]                                                 *
 ;/************************************************************************************************************************************    
 M2_Send_Preamble:
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX       /*HL HL*/
-    NOPx5                           ;[4] 4 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
+    send_bit 2, 0
+    NOPx4
 
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX       /*HL LH*/
-    NOPx5                           ;[4] 4 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
+    send_bit 2, 1
+    NOPx4
 
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX       /*LH LH*/
-    NOPx5                           ;[4] 4 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
+    send_bit 2, 0
+    NOPx4
 
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX       /*LH HL*/
-    NOPx5                           ;[4] 4 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
+    send_bit 2, 1
+    NOPx4
 
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX       /*HL LH*/
-    NOPx5                           ;[4] 4 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
+    send_bit 2, 1
+    NOPx4
 
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX       /*LH HL*/
-    NOPx5                           ;[4] 4 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch1, &PTXOUT     ;[4] HIGH on PTXOUT.PIN_TX
-    NOPx5                           ;[5] 5 timing cycles
-    MOV.B   R_scratch0, &PTXOUT     ;[4] LOW on PTXOUT.PIN_TX
+    send_bit 2, 1
     NOP                             ;[1] 1 timing cycle
 
-    MOV.B   #0x00, R_scratch0       ;[1] load up prevStateLogic to LOW (cause preamble left it that way)
+    MOV.B   #0x00, R_scratch0       ;[2] load up prevStateLogic to LOW (cause preamble left it that way)
 
 ;/************************************************************************************************************************************
 ;/													SEND A DATA BYTE (UNROLLED)                    							         *
@@ -151,155 +175,7 @@ M2_Load_Data:
     MOV.B   @R_dataPtr+, R_currByte ;[2] load current byte of data
 
 M2_Send_a_Byte:
-    ;/(b0) First Bit -----------------------------------------------------------------------------------------------------------------
-    INV     R_scratch0              ;[1] first is HIGH
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 1
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1] invert
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 2
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1] invert
-    XOR     R_currByte, R_scratch0	;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 3
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1] invert
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 4
-    RLA     R_currByte              ;[1] next bit
-    NOPx3                           ;[3]
-
-    ;/(b1) Second Bit ----------------------------------------------------------------------------------------------------------------
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1]
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    RLA     R_currByte              ;[1]
-    NOPx3                           ;[3]
-
-    ;/(b2) Third Bit -----------------------------------------------------------------------------------------------------------------
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1]
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    RLA     R_currByte              ;[1]
-    NOPx3                           ;[3]
-
-    ;/(b3) Fourth Bit ----------------------------------------------------------------------------------------------------------------
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1]
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    RLA     R_currByte              ;[1]
-    NOPx3                           ;[3]
-
-    ;/(b4) Fifth Bit -----------------------------------------------------------------------------------------------------------------
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1]
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    RLA     R_currByte              ;[1]
-    NOPx3                           ;[3]
-
-    ;/(b5) Sixth Bit -----------------------------------------------------------------------------------------------------------------
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1]
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    RLA     R_currByte              ;[1]
-    NOPx3                           ;[3]
-
-    ;/(b6) Seventh Bit ---------------------------------------------------------------------------------------------------------------
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1]
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    RLA     R_currByte              ;[1]
-    NOPx3                           ;[3]
-
-    ;/(b7) Eight Bit -----------------------------------------------------------------------------------------------------------------
-    XOR     R_currByte, R_scratch0  ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1]
-    XOR     R_currByte, R_scratch0	;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1]
-    MOV.B   R_scratch0, &PTXOUT     ;[4]
+    send_byte
 
     DEC     R_byteCt                ;[1] decrement the number of bytes sent
     TST.B   R_byteCt                ;[1] test if there are bytes left to send
@@ -310,22 +186,8 @@ M2_Send_a_Byte:
     ;/Send the Last Bit (EoS Bit)-----------------------------------------------------------------------------------------------------
 M2_Send_EoS_Byte:
 
-    INV     R_scratch0              ;[1] invert
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 1
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1] invert
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 2
-    NOPx3                           ;[3]
-
-    INV     R_scratch0              ;[1] invert
-    INV     R_scratch0              ;[1] invert
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 3
-    NOPx4                           ;[4]
-
-    INV     R_scratch0              ;[1] invert
-    MOV.B   R_scratch0, &PTXOUT     ;[4] pin 4
-    NOPx4                           ;[4]
+    send_bit 2, 1
+    NOPx4
 
     POPM.A  #5, R10                 ;[?] Restore preserved registers R6-R10 /** @todo Find out how long this takes */
 
