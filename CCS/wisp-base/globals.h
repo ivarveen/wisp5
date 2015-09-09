@@ -28,9 +28,10 @@
 #define FAIL            (0)
 #define SUCCESS         (1)
 
-/** @todo write the comments for 4 below so I can actually read them... */
 #define EPC_WORDS       (6)                                             /* length of EPC value in words, 0 <= n <= 31           */
+#define MILLER_SIZE     (2)                                             /* Miller coding size, legal values: 2, 4 and 8         */
 
+/** @todo write the comments for 4 below so I can actually read them... */
 #define CMDBUFF_SIZE    (30)                                            /* ? */
 #define DATABUFF_SIZE   (2+(EPC_WORDS<<1)+2)                            /* first2/last2 are reserved. put data into B2..B13     */
                                                                         /*      format: [storedPC|EPC|CRC16]                    */
