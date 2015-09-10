@@ -13,6 +13,7 @@
 
 void UART_setClock(void);
 void UART_init(void);
+void UART_initCustom(uint32_t fsmclk, uint32_t baudrate);
 
 void UART_asyncSend(uint8_t* txBuf, uint16_t size);
 void UART_send(uint8_t* txBuf, uint16_t size);
