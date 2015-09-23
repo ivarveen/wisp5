@@ -147,6 +147,14 @@ void main(void) {
 		wispData.epcBuf[4] = accelOut.x + 128;
 		wispData.epcBuf[6] = accelOut.z + 128;
 
+		if( (int8_t)accelOut.z > 0 ) {
+		    BITCLR(PLED1OUT, PIN_LED1);
+		    BITSET(PLED2OUT, PIN_LED2);
+		} else {
+		    BITSET(PLED1OUT, PIN_LED1);
+		    BITCLR(PLED2OUT, PIN_LED2);
+		}
+
 //    	BITCLR(P2SEL1 , PIN_ACCEL_SCLK | PIN_ACCEL_MISO | PIN_ACCEL_MOSI);
 //    	BITCLR(P2SEL0 , PIN_ACCEL_SCLK | PIN_ACCEL_MISO | PIN_ACCEL_MOSI);
 //    	PTXDIR = PIN_TX;
