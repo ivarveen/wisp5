@@ -37,7 +37,12 @@ WISP_doRFID:
 ;/								PREP THE DATABUF W/STOREDPC AND A CRC16 (225 cycles, 55us)                                     		 *
 ;/************************************************************************************************************************************
 	;Load the Stored Protocol Control (PC) values
-	MOV.B		#(STORED_PC1), &(dataBuf)	;[5]
+	MOV.B	&(rfid.epcSize),R14		;[3]
+	AND.B	#(0x001F), R14			;[2]
+	RLAM	#(3), R14				;[3]
+	OR.B	#(STORED_PC1), R14		;[2]
+	MOV.B	R14, &(dataBuf)			;[3]
+
 	MOV.B		#(STORED_PC0), &(dataBuf+1)	;[5]
 
 	;Data was already loaded by user into B2..B13, so we don't need to load it.
@@ -46,7 +51,10 @@ WISP_doRFID:
 	;Calc CRC16! (careful, it will clobber R11-R15)
 	;uint16_t crc16_ccitt(uint16_t preload,uint8_t *dataPtr, uint16_t numBytes);
 	MOV		#(dataBuf),		R13		;[2] load &dataBuf[0] as dataPtr
-	MOV		#(DATABUFF_SIZE-2),	R14		;[2] load num of bytes in ACK
+	MOV		&(rfid.epcSize),R14		;[3]
+	ADD		R14, R14				;[1]
+	ADD		#(DATABUFF_MIN_SIZE), R14 ;[2]
+	SUB		#(2), R14				; [2]
 
 	MOV 	#CRC_NO_PRELOAD, R12 	;[1] don't use a preload!
 
@@ -54,9 +62,14 @@ WISP_doRFID:
 	;onReturn: R12 holds the CRC16 value.
 
 	;STORE CRC16
-	MOV.B	R12,	&(dataBuf+(DATABUFF_SIZE-1))	;[4] store lower CRC byte first
+	MOV		&(rfid.epcSize),R14		;[3]
+	ADD		R14, R14				;[1]
+	ADD		#(DATABUFF_MIN_SIZE), R14 ;[2]
+	ADD		#(dataBuf), R14			;[2]
+
+	MOV.B	R12,	-1(R14)			;[3]
 	SWPB	R12						;[1] move upper byte into lower byte
-	MOV.B	R12,	&(dataBuf+(DATABUFF_SIZE-2))	;[4] store upper CRC byte
+	MOV.B	R12,	-2(R14)			;[3]
 
 
 	;Initial Config of RFID Transaction
@@ -263,6 +276,7 @@ endDoRFID:
 
 	TST.B	(rfid.abortFlag)
 	JZ		keepDoingRFID
+	;JZ		WISP_doRFID
 	MOV		#(0), &(TA0CCTL0)
 	RETA
 

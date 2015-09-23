@@ -29,10 +29,12 @@
 #define SUCCESS         (1)
 
 /** @todo write the comments for 4 below so I can actually read them... */
-#define EPC_WORDS       (6)                                             /* length of EPC value in words, 0 <= n <= 31           */
+#define MAX_EPC_WORDS   (24)                                            /* length of EPC value in words, 0 <= n <= 31           */
 
 #define CMDBUFF_SIZE    (30)                                            /* ? */
-#define DATABUFF_SIZE   (2+(EPC_WORDS<<1)+2)                            /* first2/last2 are reserved. put data into B2..B13     */
+#define DATABUFF_MIN_SIZE   (2+(0<<1)+2)                                /* first2/last2 are reserved. put data into B2..B13     */
+#define DATABUFF_MAX_SIZE   (2+(MAX_EPC_WORDS<<1)+2)                    /* first2/last2 are reserved. put data into B2..B13     */
+
                                                                         /*      format: [storedPC|EPC|CRC16]                    */
 #define RFIDBUFF_SIZE   (1+16+2+2+50)                                   /* longest command handled is the read command for 8 wds*/
 
@@ -75,7 +77,6 @@
 #define NUM_REQRN_BITS  (40)
 #define NUM_WRITE_BITS  (66)
 
-#define EPC_LENGTH      (EPC_WORDS)             /* 10h..14h EPC Length in Words. (6 is 96bit std)                               */
 #define UMI             (0x01)                  /* 15h      User-Memory Indicator. '1' means the tag has user memory available. */
 #define XI              (0x00)                  /* 16h      XPC_W1 indicator. '0' means the tag does not support this feature.  */
 #define NSI             (0x00)                  /* 17h..1Fh Numbering System Identifier.                                        */
@@ -105,7 +106,9 @@ typedef struct {
 
     uint8_t     rn8_ind;                    /* using our RN values in INFO_MEM, this points to the current one to use next      */
 
-    uint16_t	edge_capture_prev_ccr;		/* Previous value of CCR register, used to compute delta in edge capture ISRs		*/
+    uint16_t    edge_capture_prev_ccr;      /* Previous value of CCR register, used to compute delta in edge capture ISRs		*/
+
+    uint8_t     epcSize;
 
     /** @todo Add the following: CMD_enum latestCmd; */
 
@@ -143,7 +146,7 @@ extern RWstruct     RWData;
 
 //Memory Banks
 extern uint8_t cmd      [CMDBUFF_SIZE];
-extern uint8_t dataBuf  [DATABUFF_SIZE];
+extern uint8_t dataBuf  [DATABUFF_MAX_SIZE];
 extern uint8_t rfidBuf  [RFIDBUFF_SIZE];
 
 
@@ -183,9 +186,7 @@ extern void handleBlockWrite(void);
 
 //RFID DEFINITIONS------------------------------------------------------------------------------------------------------------------//
 
-#define STORED_PC       (  ((EPC_LENGTH&0x001F)<<11) | ((UMI&0x0001)<<10) | ((XI&0x0001)<<9) | (NSI&0x01FF)<<01 )
-//**per EPC Spec would be:
-//#define STORED_PC_GRR     (uint16_t)  (  ((NSI&0x01FF)<<7) | ((XI&0x01)<<6) | ((UMI&0x01)<<5) | (EPC_LENGTH&0x1F)  )
+#define STORED_PC       ( ((UMI&0x0001)<<10) | ((XI&0x0001)<<9) | (NSI&0x01FF)<<01 )
 
 //This is the ugliest, non-portable code ever BUT it allows the compiler to setup the memory at compile time.
 #define STORED_PC1      ( (STORED_PC&0xFF00)>>8 )

@@ -13,9 +13,9 @@ RFIDstruct  rfid;   // inventory state
 RWstruct    RWData; // tag-access state
 
 // Buffers for Gen2 protocol data
-uint8_t cmd[CMDBUFF_SIZE];      // command from reader
-uint8_t dataBuf[DATABUFF_SIZE]; // tag's response to reader
-uint8_t rfidBuf[RFIDBUFF_SIZE]; // internal buffer used by RFID handles
+uint8_t cmd[CMDBUFF_SIZE];          // command from reader
+uint8_t dataBuf[DATABUFF_MAX_SIZE]; // tag's response to reader
+uint8_t rfidBuf[RFIDBUFF_SIZE];     // internal buffer used by RFID handles
 
 /*
  * Globals
@@ -69,12 +69,13 @@ void WISP_init(void) {
     // Initialize rfid transaction mode
     rfid.isSelected = TRUE;
     rfid.abortOn    = 0x00;
+    rfid.epcSize    = 6;                                // backwards compatible
 
     isDoingLowPwrSleep = FALSE;
 
     // Initialize callbacks to null in case user doesn't configure them
     RWData.akHook =0;
-    RWData.rdHook= 0;
+    RWData.rdHook =0;
     RWData.wrHook =0;
     RWData.bwrHook=0;
 
