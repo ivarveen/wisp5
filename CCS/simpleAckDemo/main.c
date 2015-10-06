@@ -238,8 +238,9 @@ void INT_Timer2A1(void) {
  * Must call WISP_doRFID() at some point to start interacting with a reader
  */
 void main(void) {
-
     WISP_init();
+
+    //while(1){ LPM4; }
 
     // Register callback functions with WISP comm routines
     WISP_registerCallback_RN16(&my_rn16Callback);
@@ -277,8 +278,7 @@ void main(void) {
             rnsum += rnwindow[i - 1];
         }
 
-        if( ++rfid.epcSize > 29 )
-            rfid.epcSize = 0;
+        rfid.epcSize = (Bytes_per_Message>>1);
 
         // Set up EPC
         uint8_t epcidx = 0;
