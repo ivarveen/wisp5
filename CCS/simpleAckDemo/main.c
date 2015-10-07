@@ -19,7 +19,7 @@ WISP_dataStructInterface_t wispData;
 #define PIN_LED1 0x00
 #endif
 
-#define WINDOWSIZE (10)
+#define WINDOWSIZE (1) //(10)
 volatile uint16_t ackwindow[WINDOWSIZE] = { 0 };
 volatile uint16_t rnwindow[WINDOWSIZE] = { 0 };
 volatile uint8_t window_index = 0;
@@ -27,7 +27,7 @@ volatile uint8_t window_index = 0;
 volatile uint8_t use_wisp = 1;
 volatile uint16_t sensor = 0;
 
-void shiftWindow(void) {
+inline void shiftWindow(void) {
     if ((window_index + 1) < WINDOWSIZE)
         window_index++;
     else
@@ -38,6 +38,9 @@ void shiftWindow(void) {
 }
 
 #define CEIL_DIV(A, B)  ((((A) - 1) / (B)) + 1)
+
+#define UseRN16                     (1)
+#define UseACK                      (1)
 
 // Transmission period is defined by Period and Multiplier, with Period <= 2sec
 #define Transmission_Period         (LP_LSDLY_1S)       // 32kHz ticks (multiple of Transmission_Timer_Period)
@@ -50,33 +53,35 @@ void shiftWindow(void) {
 #define Bytes_per_Transmission      (120)               // #bytes/transmission
 #define Messages_per_Transmission   CEIL_DIV(Bytes_per_Transmission, Bytes_per_Message)
 
-#define Window_Timer_Period         (LP_LSDLY_100MS + LP_LSDLY_10MS); // + LP_LSDLY_1MS)    // 32kHz ticks (<= 2sec)
+#define Window_Timer_Period         (LP_LSDLY_1S) //((LP_LSDLY_100MS + LP_LSDLY_10MS)*5); // + LP_LSDLY_1MS)    // 32kHz ticks (<= 2sec)
 #define Window_ForceWISP_Period     (5)                 // #transmissions
 
 /**
  * This function is called by WISP FW after a successful RN16 transmission
  *
  */
+#if UseRN16
 void my_rn16Callback(void) {
     rnwindow[window_index]++;
 }
+#endif
 
 /** 
  * This function is called by WISP FW after a successful ACK reply
  *
  */
-volatile uint16_t nsuccess = 0;
+#if UseACK
 void my_ackCallback(void) {
     static uint16_t count = 0;
 
     if (++count >= Messages_per_Transmission) {
         rfid.abortFlag = TRUE;
         count = 0;
-        nsuccess++;
     }
 
     ackwindow[window_index]++;
 }
+#endif
 
 /**
  * This function is called by WISP FW after a successful read command
@@ -144,92 +149,96 @@ volatile uint16_t go = 0; // use counter instead of on/off to detect overrun/ove
 __interrupt
 void INT_Timer2A0(void) {
     static uint16_t multiplier_count = 0;
-    static uint8_t breakpoint_countdown = 0;
 
     TA2CCR0 += Transmission_Timer_Period;
-
     sensor += 1; // next tick for improvised sensor
 
-    if (++multiplier_count >= Transmission_Multiplier) {
-        multiplier_count = 0;
-
-        // EVALUATE RFID STATUS
-        uint16_t acksum = 0;
-        uint16_t rnsum = 0;
-        uint8_t i;
-        for (i = WINDOWSIZE; i > 0; i--) {
-            acksum += ackwindow[i - 1];
-            rnsum += rnwindow[i - 1];
-        }
-
-        /* REMOVE */
-        if (breakpoint_countdown++ >= 10) {
-            asm(" NOP");
-            breakpoint_countdown = 0;
-        }
-        /* /REMOVE */
-
-        uint8_t wisp_quality = 0;
-
-        //if ((rnsum > 0) && (acksum >= rnsum)) {
-        //    //BITSET(PLED1OUT, PIN_LED1);
-        //    wisp_quality++;
-        //} //else
-        //    //BITCLR(PLED1OUT, PIN_LED1);
-
-        if (acksum >= Messages_per_Transmission) {
-            //BITSET(PLED2OUT, PIN_LED2);
-            wisp_quality++;
-        } //else
-            //BITCLR(PLED2OUT, PIN_LED2);
-
-        use_wisp = (wisp_quality >= 1);
-
-        uint8_t m[] = "000";
-
-        if (use_wisp) {
-            // disable BLE
-            m[0] = 'D';
-            m[1] = (sensor >> 8) & 0xFF;
-            m[2] = (sensor >> 0) & 0xFF;
-
-            BITSET(PLED2OUT, PIN_LED2);
-        } else {
-            // enable BLE
-            m[0] = 'U';
-            m[1] = (sensor >> 8) & 0xFF;
-            m[2] = (sensor >> 0) & 0xFF;
-
-            BITCLR(PLED2OUT, PIN_LED2);
-        }
-
-        UART_setClock();
-        UART_critSend(m, sizeof(m));
-
-        if (go < ((uint16_t) -1))
-            go++;
-
-        LPM4_EXIT;
+    // EVALUATE RFID STATUS
+#if UseACK
+    uint16_t acksum = 0;
+#endif
+#if UseRN16
+    uint16_t rnsum = 0;
+#endif
+#if 0
+    uint8_t i;
+    for (i = WINDOWSIZE; i > 0; i--) {
+#if UseACK
+        acksum += ackwindow[i - 1];
+        ackwindow[i - 1] = 0;
+#endif
+#if UseRN16
+        rnsum += rnwindow[i - 1];
+        rnwindow[i - 1] = 0;
+#endif
     }
+#endif
+
+    acksum = ackwindow[0];
+    ackwindow[0] = 0;
+    rnsum = ackwindow[0];
+    rnwindow[0] = 0;
+
+    uint8_t wisp_quality = 0;
+
+#if UseRN16 && UseACK
+    //if ((rnsum > 0) && (acksum >= rnsum)) {
+    //    wisp_quality++;
+    //}
+#endif
+
+#if UseACK
+    if (acksum >= Messages_per_Transmission) {
+        //wisp_quality++;
+        wisp_quality = 1;
+    }
+#endif
+
+    uint8_t m[] = "000";
+
+    if (wisp_quality) {
+        // disable BLE
+        m[0] = 'D';
+        BITSET(PLED2OUT, PIN_LED2);
+    } else {
+        // enable BLE
+        m[0] = 'U';
+        BITCLR(PLED2OUT, PIN_LED2);
+    }
+
+    m[1] = (sensor >> 8) & 0xFF;
+    m[2] = (sensor >> 0) & 0xFF;
+
+    UART_setClock();
+    UART_critSend(m, sizeof(m));
+
+    //if (go < ((uint16_t) -1))
+    //    go++;
+
+    go = 1;
+
+    LPM4_EXIT;
 }
 
-#pragma vector=TIMER2_A1_VECTOR // Timeout
-__interrupt
-void INT_Timer2A1(void) {
-    switch (__even_in_range(TA2IV, TA2IV_TAIFG)) {
-    case TA2IV_NONE:
-        break;
-    case TA2IV_TACCR1:
-        // Wakeup Timeout Interrupt
-        TA2CCR1 += Window_Timer_Period;
+/*
+ #pragma vector=TIMER2_A1_VECTOR // Timeout
+ __interrupt
+ void INT_Timer2A1(void) {
+ switch (__even_in_range(TA2IV, TA2IV_TAIFG)) {
+ case TA2IV_NONE:
+ break;
+ case TA2IV_TACCR1:
+ // Wakeup Timeout Interrupt
+ TA2CCR1 += Window_Timer_Period;
 
-        shiftWindow();
+ shiftWindow();
 
-        break;
-    case TA2IV_TAIFG:
-        break;
-    }
-}
+ break;
+ case TA2IV_TAIFG:
+ break;
+ }
+ }
+ */
 
 /**
  * This implements the user application and should never return
@@ -243,59 +252,41 @@ void main(void) {
     //while(1){ LPM4; }
 
     // Register callback functions with WISP comm routines
+#if UseRN16
     WISP_registerCallback_RN16(&my_rn16Callback);
+#endif
+#if UseACK
     WISP_registerCallback_ACK(&my_ackCallback);
+#endif
     WISP_registerCallback_READ(&my_readCallback);
     WISP_registerCallback_WRITE(&my_writeCallback);
     WISP_registerCallback_BLOCKWRITE(&my_blockWriteCallback);
-
-    // Initialize BlockWrite data buffer.
-    uint16_t bwr_array[6] = { 0 };
-    RWData.bwrBufPtr = bwr_array;
 
     // Get access to EPC, READ, and WRITE data buffers
     WISP_getDataBuffers(&wispData);
 
     // Set up operating parameters for WISP comm routines
-    WISP_setMode( MODE_READ | MODE_WRITE); // | MODE_USES_SEL);
+    WISP_setMode(0); // MODE_READ | MODE_WRITE | MODE_USES_SEL);
     WISP_setAbortConditions(0); //CMD_ID_READ | CMD_ID_WRITE /*| CMD_ID_ACK*/);
+
+    rfid.epcSize = (Bytes_per_Message >> 1);
+
+    // Set up EPC
+    uint8_t epcidx = 0;
+    for (epcidx = (rfid.epcSize << 1); epcidx > 0; epcidx--)
+        wispData.epcBuf[epcidx - 1] = ((epcidx - 1) & 0x0F) << 4
+                | ((epcidx - 1) & 0x0F) << 0;  // Unused data field
 
     UART_init();
 
     init_clocks();
     start_intervalClock();
-    //stop_timeoutClock();
 
     // Talk to the RFID reader.
     while (FOREVER) {
 
-        // EVALUATE RFID STATUS
-        uint16_t acksum = 0;
-        uint16_t rnsum = 0;
-        uint8_t i;
-        for (i = WINDOWSIZE; i > 0; i--) {
-            acksum += ackwindow[i - 1];
-            rnsum += rnwindow[i - 1];
-        }
-
-        rfid.epcSize = (Bytes_per_Message>>1);
-
-        // Set up EPC
-        uint8_t epcidx = 0;
-        for (; epcidx < (rfid.epcSize<<1); epcidx++)
-            wispData.epcBuf[epcidx] = (epcidx & 0x0F)<<4 | (epcidx & 0x0F)<<0;  // Unused data field
-
         wispData.epcBuf[3] = (sensor >> 8) & 0xFF;
         wispData.epcBuf[4] = (sensor >> 0) & 0xFF;
-
-        //wispData.epcBuf[5] = (acksum >> 8) & 0xFF;
-        //wispData.epcBuf[6] = (acksum >> 0) & 0xFF;
-        //wispData.epcBuf[7] = (rnsum >> 8) & 0xFF;
-        //wispData.epcBuf[8] = (rnsum >> 0) & 0xFF;
-
-        //wispData.epcBuf[9] = (0x51); // Tag hardware revision (5.1)
-        //wispData.epcBuf[10] = *((uint8_t*) INFO_WISP_TAGID + 1); // WISP ID MSB: Pull from INFO seg
-        //wispData.epcBuf[11] = *((uint8_t*) INFO_WISP_TAGID); // WISP ID LSB: Pull from INFO seg
 
         // WAIT FOR TIMER
         while (!go) {
@@ -307,7 +298,7 @@ void main(void) {
         go = 0;
 
         // enable WISP
-        start_timeoutClock();
+        //start_timeoutClock();
         WISP_doRFID();
     }
 }
