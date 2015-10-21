@@ -39,8 +39,14 @@ inline void shiftWindow(void) {
 
 #define CEIL_DIV(A, B)  ((((A) - 1) / (B)) + 1)
 
+// Switch on/off functionality
 #define UseRN16                     (1)
 #define UseACK                      (1)
+#define UseSENSOR                   (0)
+#define UseUART                     (0)
+#if !UseUART
+#define UseGPIO                     (1)
+#endif
 
 // Transmission period is defined by Period and Multiplier, with Period <= 2sec
 #define Transmission_Period         (LP_LSDLY_1S)       // 32kHz ticks (multiple of Transmission_Timer_Period)
@@ -53,7 +59,7 @@ inline void shiftWindow(void) {
 #define Bytes_per_Transmission      (120)               // #bytes/transmission
 #define Messages_per_Transmission   CEIL_DIV(Bytes_per_Transmission, Bytes_per_Message)
 
-#define Window_Timer_Period         (LP_LSDLY_1S) //((LP_LSDLY_100MS + LP_LSDLY_10MS)*5); // + LP_LSDLY_1MS)    // 32kHz ticks (<= 2sec)
+#define Window_Timer_Period         (LP_LSDLY_1S)       // 32kHz ticks (<= 2sec)
 #define Window_ForceWISP_Period     (5)                 // #transmissions
 
 /**
@@ -151,7 +157,10 @@ void INT_Timer2A0(void) {
     static uint16_t multiplier_count = 0;
 
     TA2CCR0 += Transmission_Timer_Period;
+
+#if UseSENSOR
     sensor += 1; // next tick for improvised sensor
+#endif
 
     // EVALUATE RFID STATUS
 #if UseACK
@@ -181,10 +190,10 @@ void INT_Timer2A0(void) {
 
     uint8_t wisp_quality = 0;
 
-#if UseRN16 && UseACK
-    //if ((rnsum > 0) && (acksum >= rnsum)) {
-    //    wisp_quality++;
-    //}
+#if 0 && UseRN16 && UseACK
+    if ((rnsum > 0) && (acksum >= rnsum)) {
+        wisp_quality++;
+    }
 #endif
 
 #if UseACK
@@ -194,51 +203,69 @@ void INT_Timer2A0(void) {
     }
 #endif
 
+#if UseUART
     uint8_t m[] = "000";
+#endif
 
     if (wisp_quality) {
         // disable BLE
+#if UseUART
         m[0] = 'D';
+#endif
         BITSET(PLED2OUT, PIN_LED2);
+
+#if UseGPIO
+        BITSET(P3OUT, PIN_AUX2);
+        __delay_cycles(75 * 16);
+        BITCLR(P3OUT, PIN_AUX2);
+#endif
     } else {
         // enable BLE
+#if UseUART
         m[0] = 'U';
+#endif
         BITCLR(PLED2OUT, PIN_LED2);
+
+#if UseGPIO
+        BITSET(P3OUT, PIN_AUX1);
+        __delay_cycles(75 * 16);
+        BITCLR(P3OUT, PIN_AUX1);
+#endif
     }
 
+#if UseUART
     m[1] = (sensor >> 8) & 0xFF;
     m[2] = (sensor >> 0) & 0xFF;
 
     UART_setClock();
+    //UART_flowControlSend(m, sizeof(m));
     UART_critSend(m, sizeof(m));
-
-    //if (go < ((uint16_t) -1))
-    //    go++;
+#endif
 
     go = 1;
 
     LPM4_EXIT;
 }
 
-/*
- #pragma vector=TIMER2_A1_VECTOR // Timeout
- __interrupt
- void INT_Timer2A1(void) {
- switch (__even_in_range(TA2IV, TA2IV_TAIFG)) {
- case TA2IV_NONE:
- break;
- case TA2IV_TACCR1:
- // Wakeup Timeout Interrupt
- TA2CCR1 += Window_Timer_Period;
+#if 0
+#pragma vector=TIMER2_A1_VECTOR // Timeout
+__interrupt
+void INT_Timer2A1(void) {
+    switch (__even_in_range(TA2IV, TA2IV_TAIFG)) {
+        case TA2IV_NONE:
+        break;
+        case TA2IV_TACCR1:
+        // Wakeup Timeout Interrupt
+        TA2CCR1 += Window_Timer_Period;
 
- shiftWindow();
+        shiftWindow();
 
- break;
- case TA2IV_TAIFG:
- break;
- }
- }
- */
+        break;
+        case TA2IV_TAIFG:
+        break;
+    }
+}
+#endif
 
 /**
  * This implements the user application and should never return
@@ -248,8 +275,6 @@ void INT_Timer2A0(void) {
  */
 void main(void) {
     WISP_init();
-
-    //while(1){ LPM4; }
 
     // Register callback functions with WISP comm routines
 #if UseRN16
@@ -277,7 +302,28 @@ void main(void) {
         wispData.epcBuf[epcidx - 1] = ((epcidx - 1) & 0x0F) << 4
                 | ((epcidx - 1) & 0x0F) << 0;  // Unused data field
 
-    UART_init();
+#if UseUART
+    UART_initCustom(8000000, 115200); //9600
+
+    // DTR -- Data Ready
+    BITSET(P3DIR, PIN_AUX1);// ENA -- output
+    BITCLR(P3OUT, PIN_AUX1);//     -- low
+
+    // CTS -- Clear To Send
+    BITCLR(P3DIR, PIN_AUX2);// CTS -- input
+    BITSET(P3REN, PIN_AUX2);//     -- pull...
+    BITSET(P3OUT, PIN_AUX2);//     -- ... up
+#endif
+
+#if UseGPIO
+    // Set
+    BITSET(P3DIR, PIN_AUX1);// ENA -- output
+    BITCLR(P3OUT, PIN_AUX1); //     -- low
+
+    // Reset
+    BITSET(P3DIR, PIN_AUX2);// ENA -- output
+    BITCLR(P3OUT, PIN_AUX2); //     -- low
+#endif
 
     init_clocks();
     start_intervalClock();
@@ -293,7 +339,9 @@ void main(void) {
             TA2CCTL0 |= (CCIE); // enable interrupt
             __bis_SR_register(GIE); // global interrupt enable
 
+            CSCTL6 &= ~(MODCLKREQEN + SMCLKREQEN + MCLKREQEN);
             LPM4; // LPM3 ?
+            CSCTL6 |= (MODCLKREQEN + SMCLKREQEN + MCLKREQEN);
         }
         go = 0;
 

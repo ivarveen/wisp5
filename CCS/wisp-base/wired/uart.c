@@ -11,7 +11,7 @@
 /**
  * State variables for the UART module
  */
-struct {
+static struct {
     uint8_t isTxBusy; // Is the module currently in the middle of a transmit operation?
     uint8_t* txPtr; // Pointer to the next byte to be transmitted
     uint16_t txBytesRemaining; // Number of bytes left to send
@@ -134,6 +134,28 @@ void UART_send(uint8_t* txBuf, uint16_t size) {
     // Block until complete
     while (UART_SM.isTxBusy)
         ;
+}
+
+/**
+ * Transmit the contents of the given character buffer. Block until complete.
+ *
+ * @param txBuf the character buffer to be transmitted
+ * @param size the number of bytes to send
+ *
+ */
+void UART_flowControlSend(uint8_t* txBuf, uint16_t size) {
+
+    // set RTS (go low)
+    BITCLR(P3OUT, PIN_AUX1);
+
+    // wait for CTS (goes low)
+    while( !!(P3IN&PIN_AUX2) )
+        ; // NOP
+
+    UART_critSend(txBuf, size);
+
+    // reset RTS (go high)
+    BITSET(P3OUT, PIN_AUX1);
 }
 
 /**
