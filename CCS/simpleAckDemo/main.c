@@ -24,6 +24,8 @@ volatile uint16_t ackwindow[WINDOWSIZE] = { 0 };
 volatile uint16_t rnwindow[WINDOWSIZE] = { 0 };
 volatile uint8_t window_index = 0;
 
+volatile uint16_t n_failed = 0;
+
 volatile uint8_t use_wisp = 1;
 volatile uint16_t sensor = 0;
 
@@ -61,6 +63,8 @@ inline void shiftWindow(void) {
 
 #define Window_Timer_Period         (LP_LSDLY_1S)       // 32kHz ticks (<= 2sec)
 #define Window_ForceWISP_Period     (5)                 // #transmissions
+
+#define Backoff_Maximum_Period      (10)                // #Transmission_Period intervals
 
 /**
  * This function is called by WISP FW after a successful RN16 transmission
@@ -213,6 +217,7 @@ void INT_Timer2A0(void) {
         m[0] = 'D';
 #endif
         BITSET(PLED2OUT, PIN_LED2);
+        n_failed = 0;
 
 #if UseGPIO
         BITSET(P3OUT, PIN_AUX2);
@@ -225,6 +230,9 @@ void INT_Timer2A0(void) {
         m[0] = 'U';
 #endif
         BITCLR(PLED2OUT, PIN_LED2);
+        n_failed += 1;
+        if (n_failed > Backoff_Maximum_Period)
+            n_failed = Backoff_Maximum_Period;
 
 #if UseGPIO
         BITSET(P3OUT, PIN_AUX1);
@@ -337,6 +345,8 @@ void main(void) {
     init_clocks();
     start_intervalClock();
 
+    int i = 0;
+
     // Talk to the RFID reader.
     while (FOREVER) {
 
@@ -356,6 +366,10 @@ void main(void) {
 
         // enable WISP
         //start_timeoutClock();
-        WISP_doRFID();
+        if (((i++) % (1 + n_failed)) == 0) {
+            i = 1;
+
+            WISP_doRFID();
+        }
     }
 }
