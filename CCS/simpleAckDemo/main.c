@@ -42,8 +42,8 @@ inline void shiftWindow(void) {
 // Switch on/off functionality
 #define UseRN16                     (1)
 #define UseACK                      (1)
-#define UseSENSOR                   (0)
-#define UseUART                     (0)
+#define UseSENSOR                   (1)
+#define UseUART                     (1)
 #if !UseUART
 #define UseGPIO                     (1)
 #endif
@@ -237,9 +237,18 @@ void INT_Timer2A0(void) {
     m[1] = (sensor >> 8) & 0xFF;
     m[2] = (sensor >> 0) & 0xFF;
 
-    UART_setClock();
-    //UART_flowControlSend(m, sizeof(m));
-    UART_critSend(m, sizeof(m));
+    if (!wisp_quality) {
+        BITSET(P3OUT, PIN_AUX1); // RTS
+
+        UART_setClock();
+
+        while (!(P3IN & PIN_AUX2))
+            ; // CTS
+
+        UART_critSend(m, sizeof(m));
+
+        BITCLR(P3OUT, PIN_AUX1);
+    }
 #endif
 
     go = 1;
@@ -307,22 +316,22 @@ void main(void) {
 
     // DTR -- Data Ready
     BITSET(P3DIR, PIN_AUX1);// ENA -- output
-    BITCLR(P3OUT, PIN_AUX1);//     -- low
+    BITCLR(P3OUT, PIN_AUX1); //     -- low
 
     // CTS -- Clear To Send
     BITCLR(P3DIR, PIN_AUX2);// CTS -- input
-    BITSET(P3REN, PIN_AUX2);//     -- pull...
-    BITSET(P3OUT, PIN_AUX2);//     -- ... up
+    BITSET(P3REN, PIN_AUX2); //     -- pull...
+    BITSET(P3OUT, PIN_AUX2); //     -- ... up
 #endif
 
 #if UseGPIO
     // Set
     BITSET(P3DIR, PIN_AUX1);// ENA -- output
-    BITCLR(P3OUT, PIN_AUX1); //     -- low
+    BITCLR(P3OUT, PIN_AUX1);//     -- low
 
     // Reset
     BITSET(P3DIR, PIN_AUX2);// ENA -- output
-    BITCLR(P3OUT, PIN_AUX2); //     -- low
+    BITCLR(P3OUT, PIN_AUX2);//     -- low
 #endif
 
     init_clocks();
