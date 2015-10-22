@@ -13,6 +13,14 @@
 WISP_dataStructInterface_t wispData;
 
 /** 
+ * This function is called by WISP FW after a successful RN16 transmission
+ *
+ */
+void my_rn16Callback(void) {
+    asm(" NOP");
+}
+
+/**
  * This function is called by WISP FW after a successful ACK reply
  *
  */
@@ -58,23 +66,23 @@ void main(void) {
     WISP_init();
 
     // Register callback functions with WISP comm routines
+    WISP_registerCallback_RN16(&my_rn16Callback);
     WISP_registerCallback_ACK(&my_ackCallback);
     WISP_registerCallback_READ(&my_readCallback);
     WISP_registerCallback_WRITE(&my_writeCallback);
     WISP_registerCallback_BLOCKWRITE(&my_blockWriteCallback);
-    BITSET(PMEAS_ENDIR, PIN_MEAS_EN); // SET direction of MEAS_EN pin to output!
 
     // Get access to EPC, READ, and WRITE data buffers
     WISP_getDataBuffers(&wispData);
 
     // Set up operating parameters for WISP comm routines
-    WISP_setMode( MODE_READ | MODE_WRITE | MODE_USES_SEL);
-    WISP_setAbortConditions(CMD_ID_READ | CMD_ID_WRITE /*| CMD_ID_ACK*/);
+    WISP_setMode(0);
+    WISP_setAbortConditions(CMD_ID_READ | CMD_ID_WRITE | CMD_ID_ACK);
 
     // Set up EPC
     wispData.epcBuf[0] = 0x00;        // Tag type
-    wispData.epcBuf[1] = 0;           // HIGH ADC value field
-    wispData.epcBuf[2] = 0;           // LOW ADC value field
+    wispData.epcBuf[1] = 0x11;        // HIGH ADC value field
+    wispData.epcBuf[2] = 0x22;        // LOW ADC value field
     wispData.epcBuf[3] = 0;           // Unused data field
     wispData.epcBuf[4] = 0;           // Unused data field
     wispData.epcBuf[5] = 0;           // Unused data field
@@ -104,14 +112,14 @@ void main(void) {
         int16_t adc_voltage = ADC_rawToVoltage(adc_value);
         BITCLR(PMEAS_ENOUT, PIN_MEAS_EN);
 
-        wispData.epcBuf[1] = (adc_voltage >> 8) & 0xFF;
-        wispData.epcBuf[2] = (adc_voltage >> 0) & 0xFF;
+        wispData.epcBuf[3] = (adc_voltage >> 8) & 0xFF;
+        wispData.epcBuf[4] = (adc_voltage >> 0) & 0xFF;
 #else
         uint16_t adc_value = ADC_read();
         int16_t adc_temperature = ADC_rawToTemperature(adc_value);
 
-        wispData.epcBuf[1] = (adc_temperature >> 8) & 0xFF;
-        wispData.epcBuf[2] = (adc_temperature >> 0) & 0xFF;
+        wispData.epcBuf[3] = (adc_temperature >> 8) & 0xFF;
+        wispData.epcBuf[4] = (adc_temperature >> 0) & 0xFF;
 #endif
 
         WISP_doRFID();
