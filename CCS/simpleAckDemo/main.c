@@ -12,6 +12,17 @@
 
 WISP_dataStructInterface_t wispData;
 
+// Switch on/off functionality
+#define UseRN16                     (1) // Use RN16 count as quality metric
+#define UseACK                      (1) // Use ACK count as quality metric
+#define UseSENSOR                   (1) // Use time-sensor value
+#define UseADC                      (1) // Use ADC/temperature sensor
+#define UseUART                     (1) // Use UART communication with BLE
+
+#if !UseUART
+#define UseGPIO                     (1) // Use GPIO communication with BLE
+#endif
+
 #if 1
 #undef PIN_LED2
 #define PIN_LED2 0x00
@@ -19,7 +30,7 @@ WISP_dataStructInterface_t wispData;
 #define PIN_LED1 0x00
 #endif
 
-#define WINDOWSIZE (1) //(10)
+#define WINDOWSIZE (1)
 volatile uint16_t ackwindow[WINDOWSIZE] = { 0 };
 volatile uint16_t rnwindow[WINDOWSIZE] = { 0 };
 volatile uint8_t window_index = 0;
@@ -27,7 +38,14 @@ volatile uint8_t window_index = 0;
 volatile uint16_t n_failed = 0;
 
 volatile uint8_t use_wisp = 1;
+
+#if UseSENSOR
 volatile uint16_t sensor = 0;
+#endif
+
+#if UseADC
+volatile uint16_t temperature = 0;
+#endif
 
 inline void shiftWindow(void) {
     if ((window_index + 1) < WINDOWSIZE)
@@ -41,14 +59,6 @@ inline void shiftWindow(void) {
 
 #define CEIL_DIV(A, B)  ((((A) - 1) / (B)) + 1)
 
-// Switch on/off functionality
-#define UseRN16                     (1)
-#define UseACK                      (1)
-#define UseSENSOR                   (1)
-#define UseUART                     (1)
-#if !UseUART
-#define UseGPIO                     (1)
-#endif
 
 // Transmission period is defined by Period and Multiplier, with Period <= 2sec
 #define Transmission_Period         (LP_LSDLY_1S)       // 32kHz ticks (multiple of Transmission_Timer_Period)
@@ -189,7 +199,7 @@ void INT_Timer2A0(void) {
 
     acksum = ackwindow[0];
     ackwindow[0] = 0;
-    rnsum = ackwindow[0];
+    rnsum = rnwindow[0];
     rnwindow[0] = 0;
 
     uint8_t wisp_quality = 0;
@@ -208,13 +218,20 @@ void INT_Timer2A0(void) {
 #endif
 
 #if UseUART
+#if UseSENSOR && UseADC
+    uint8_t m[] = "00000";
+#elif UseSENSOR || UseADC
     uint8_t m[] = "000";
+#else
+    uint8_t m[] = "0";
+#endif
+    uint8_t m_idx = 0;
 #endif
 
     if (wisp_quality) {
         // disable BLE
 #if UseUART
-        m[0] = 'D';
+        m[m_idx++] = 'D';
 #endif
         BITSET(PLED2OUT, PIN_LED2);
         n_failed = 0;
@@ -227,7 +244,7 @@ void INT_Timer2A0(void) {
     } else {
         // enable BLE
 #if UseUART
-        m[0] = 'U';
+        m[m_idx++] = 'U';
 #endif
         BITCLR(PLED2OUT, PIN_LED2);
         n_failed += 1;
@@ -242,8 +259,16 @@ void INT_Timer2A0(void) {
     }
 
 #if UseUART
-    m[1] = (sensor >> 8) & 0xFF;
-    m[2] = (sensor >> 0) & 0xFF;
+
+#if UseSENSOR
+    m[m_idx++] = (sensor >> 8) & 0xFF;
+    m[m_idx++] = (sensor >> 0) & 0xFF;
+#endif
+
+#if UseADC
+    m[m_idx++] = (temperature >> 8) & 0xFF;
+    m[m_idx++] = (temperature >> 0) & 0xFF;
+#endif
 
     if (!wisp_quality) {
         BITSET(P3OUT, PIN_AUX1); // RTS
@@ -308,8 +333,14 @@ void main(void) {
     WISP_getDataBuffers(&wispData);
 
     // Set up operating parameters for WISP comm routines
-    WISP_setMode(0); // MODE_READ | MODE_WRITE | MODE_USES_SEL);
-    WISP_setAbortConditions(0); //CMD_ID_READ | CMD_ID_WRITE /*| CMD_ID_ACK*/);
+    WISP_setMode(0);
+    WISP_setAbortConditions(0);
+
+    // Set up Analog to Digital Converter for temperature sensor
+#if UseADC
+    ADC_initCustom(ADC_reference_2_0V, ADC_precision_10bit,
+            ADC_input_temperature);
+#endif
 
     rfid.epcSize = (Bytes_per_Message >> 1);
 
@@ -319,6 +350,7 @@ void main(void) {
         wispData.epcBuf[epcidx - 1] = ((epcidx - 1) & 0x0F) << 4
                 | ((epcidx - 1) & 0x0F) << 0;  // Unused data field
 
+    // Set up UART communication module
 #if UseUART
     UART_initCustom(8000000, 115200); //9600
 
@@ -332,6 +364,7 @@ void main(void) {
     BITSET(P3OUT, PIN_AUX2); //     -- ... up
 #endif
 
+    // Set up GPIO pins for Set/Reset BLE
 #if UseGPIO
     // Set
     BITSET(P3DIR, PIN_AUX1);// ENA -- output
@@ -350,8 +383,18 @@ void main(void) {
     // Talk to the RFID reader.
     while (FOREVER) {
 
+#if UseSENSOR
         wispData.epcBuf[3] = (sensor >> 8) & 0xFF;
         wispData.epcBuf[4] = (sensor >> 0) & 0xFF;
+#endif
+
+#if UseADC
+        uint16_t adc_value = ADC_read();
+        temperature = ADC_rawToTemperature(adc_value);
+
+        wispData.epcBuf[5] = (temperature >> 8) & 0xFF;
+        wispData.epcBuf[6] = (temperature >> 0) & 0xFF;
+#endif
 
         // WAIT FOR TIMER
         while (!go) {
@@ -365,7 +408,6 @@ void main(void) {
         go = 0;
 
         // enable WISP
-        //start_timeoutClock();
         if (((i++) % (1 + n_failed)) == 0) {
             i = 1;
 
