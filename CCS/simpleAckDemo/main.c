@@ -130,6 +130,10 @@ void my_blockWriteCallback(void) {
     asm(" NOP");
 }
 
+void my_adcReadyCallback(uint16_t raw) {
+    temperature = ADC_rawToTemperature(raw);
+}
+
 void start_intervalClock(void) {
     //TA2CTL &= ~(TAIFG); // reset interrupt? might introduce timing related issues (i.e. calling this function while an interrupt is pending)
     TA2CCTL0 |= (CCIE); // enable interrupt
@@ -174,6 +178,10 @@ void INT_Timer2A0(void) {
 
 #if UseSENSOR
     sensor += 1; // next tick for improvised sensor
+#endif
+
+#if UseADC
+    ADC_asyncRead(my_adcReadyCallback);
 #endif
 
     // EVALUATE RFID STATUS
@@ -389,15 +397,15 @@ void main(void) {
 #endif
 
 #if UseADC
-        uint16_t adc_value = ADC_read();
-        temperature = ADC_rawToTemperature(adc_value);
-
         wispData.epcBuf[5] = (temperature >> 8) & 0xFF;
         wispData.epcBuf[6] = (temperature >> 0) & 0xFF;
 #endif
 
         // WAIT FOR TIMER
         while (!go) {
+            while (ADC_isBusy())
+                ; // let ADC finish
+
             TA2CCTL0 |= (CCIE); // enable interrupt
             __bis_SR_register(GIE); // global interrupt enable
 
