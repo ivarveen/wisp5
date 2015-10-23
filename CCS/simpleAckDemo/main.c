@@ -13,6 +13,11 @@
 WISP_dataStructInterface_t wispData;
 
 // Switch on/off functionality
+#define UseWISP                     (1) // Use WISP communication channel
+#define UseBLE                      (1) // Use BLE communication channel
+
+#define UseBACKOFF                  (0) // Use WISP back-off mechanism
+
 #define UseRN16                     (1) // Use RN16 count as quality metric
 #define UseACK                      (1) // Use ACK count as quality metric
 #define UseSENSOR                   (1) // Use time-sensor value
@@ -36,7 +41,6 @@ volatile uint16_t rnwindow[WINDOWSIZE] = { 0 };
 volatile uint8_t window_index = 0;
 
 volatile uint16_t n_failed = 0;
-
 volatile uint8_t use_wisp = 1;
 
 #if UseSENSOR
@@ -178,37 +182,40 @@ void INT_Timer2A0(void) {
 
 #if UseSENSOR
     sensor += 1; // next tick for improvised sensor
-#endif
+#endif // UseSENSOR
 
-#if UseADC
+#if 0 && UseADC
     ADC_asyncRead(my_adcReadyCallback);
-#endif
+#endif // UseADC
 
+#if UseBACKOFF || UseBLE
     // EVALUATE RFID STATUS
 #if UseACK
     uint16_t acksum = 0;
-#endif
+#endif // UseACK
 #if UseRN16
     uint16_t rnsum = 0;
-#endif
+#endif // UseRN16
 #if 0
     uint8_t i;
     for (i = WINDOWSIZE; i > 0; i--) {
 #if UseACK
         acksum += ackwindow[i - 1];
         ackwindow[i - 1] = 0;
-#endif
+#endif // UseACK
 #if UseRN16
         rnsum += rnwindow[i - 1];
         rnwindow[i - 1] = 0;
-#endif
+#endif // UseRN16
     }
-#endif
+#endif // UseBACKOFF
 
+#if UseWISP
     acksum = ackwindow[0];
     ackwindow[0] = 0;
     rnsum = rnwindow[0];
     rnwindow[0] = 0;
+#endif // UseWISP
 
     uint8_t wisp_quality = 0;
 
@@ -216,16 +223,16 @@ void INT_Timer2A0(void) {
     if ((rnsum > 0) && (acksum >= rnsum)) {
         wisp_quality++;
     }
-#endif
+#endif // UseRN16 && UseACK
 
 #if UseACK
     if (acksum >= Messages_per_Transmission) {
         //wisp_quality++;
         wisp_quality = 1;
     }
-#endif
+#endif // UseACK
 
-#if UseUART
+#if UseBLE && UseUART
 #if UseSENSOR && UseADC
     uint8_t m[] = "00000";
 #elif UseSENSOR || UseADC
@@ -234,49 +241,55 @@ void INT_Timer2A0(void) {
     uint8_t m[] = "0";
 #endif
     uint8_t m_idx = 0;
-#endif
+#endif // UseBLE && UseUART
 
     if (wisp_quality) {
         // disable BLE
-#if UseUART
+#if UseBLE && UseUART
         m[m_idx++] = 'D';
-#endif
+#endif // UseBLE && UseUART
         BITSET(PLED2OUT, PIN_LED2);
-        n_failed = 0;
 
-#if UseGPIO
+#if UseBACKOFF
+        n_failed = 0;
+#endif // UseBACKOFF
+
+#if UseBLE && UseGPIO
         BITSET(P3OUT, PIN_AUX2);
         __delay_cycles(75 * 16);
         BITCLR(P3OUT, PIN_AUX2);
 #endif
     } else {
         // enable BLE
-#if UseUART
+#if UseBLE && UseUART
         m[m_idx++] = 'U';
-#endif
+#endif // UseBLE && UseUART
         BITCLR(PLED2OUT, PIN_LED2);
+
+#if UseBACKOFF
         n_failed += 1;
         if (n_failed > Backoff_Maximum_Period)
             n_failed = Backoff_Maximum_Period;
+#endif // UseBACKOFF
 
-#if UseGPIO
+#if UseBLE && UseGPIO
         BITSET(P3OUT, PIN_AUX1);
         __delay_cycles(75 * 16);
         BITCLR(P3OUT, PIN_AUX1);
-#endif
+#endif // UseBLE && UseGPIO
     }
 
-#if UseUART
+#if UseBLE && UseUART
 
 #if UseSENSOR
     m[m_idx++] = (sensor >> 8) & 0xFF;
     m[m_idx++] = (sensor >> 0) & 0xFF;
-#endif
+#endif // UseSENSOR
 
 #if UseADC
     m[m_idx++] = (temperature >> 8) & 0xFF;
     m[m_idx++] = (temperature >> 0) & 0xFF;
-#endif
+#endif // UseADC
 
     if (!wisp_quality) {
         BITSET(P3OUT, PIN_AUX1); // RTS
@@ -290,7 +303,10 @@ void INT_Timer2A0(void) {
 
         BITCLR(P3OUT, PIN_AUX1);
     }
-#endif
+
+#endif // UseBLE && UseUART
+
+#endif // UseBACKOFF
 
     go = 1;
 
@@ -329,10 +345,10 @@ void main(void) {
     // Register callback functions with WISP comm routines
 #if UseRN16
     WISP_registerCallback_RN16(&my_rn16Callback);
-#endif
+#endif // UseRN16
 #if UseACK
     WISP_registerCallback_ACK(&my_ackCallback);
-#endif
+#endif // UseACK
     WISP_registerCallback_READ(&my_readCallback);
     WISP_registerCallback_WRITE(&my_writeCallback);
     WISP_registerCallback_BLOCKWRITE(&my_blockWriteCallback);
@@ -348,18 +364,20 @@ void main(void) {
 #if UseADC
     ADC_initCustom(ADC_reference_2_0V, ADC_precision_10bit,
             ADC_input_temperature);
-#endif
+#endif // UseADC
 
     rfid.epcSize = (Bytes_per_Message >> 1);
 
     // Set up EPC
+#if UseWISP
     uint8_t epcidx = 0;
     for (epcidx = (rfid.epcSize << 1); epcidx > 0; epcidx--)
         wispData.epcBuf[epcidx - 1] = ((epcidx - 1) & 0x0F) << 4
                 | ((epcidx - 1) & 0x0F) << 0;  // Unused data field
+#endif // UseWISP
 
     // Set up UART communication module
-#if UseUART
+#if UseBLE && UseUART
     UART_initCustom(8000000, 115200); //9600
 
     // DTR -- Data Ready
@@ -370,10 +388,10 @@ void main(void) {
     BITCLR(P3DIR, PIN_AUX2);// CTS -- input
     BITSET(P3REN, PIN_AUX2); //     -- pull...
     BITSET(P3OUT, PIN_AUX2); //     -- ... up
-#endif
+#endif // UseBLE && UseUART
 
     // Set up GPIO pins for Set/Reset BLE
-#if UseGPIO
+#if UseBLE && UseGPIO
     // Set
     BITSET(P3DIR, PIN_AUX1);// ENA -- output
     BITCLR(P3OUT, PIN_AUX1);//     -- low
@@ -381,7 +399,7 @@ void main(void) {
     // Reset
     BITSET(P3DIR, PIN_AUX2);// ENA -- output
     BITCLR(P3OUT, PIN_AUX2);//     -- low
-#endif
+#endif // UseBLE && UseGPIO
 
     init_clocks();
     start_intervalClock();
@@ -391,15 +409,17 @@ void main(void) {
     // Talk to the RFID reader.
     while (FOREVER) {
 
-#if UseSENSOR
+#if UseWISP && UseSENSOR
         wispData.epcBuf[3] = (sensor >> 8) & 0xFF;
         wispData.epcBuf[4] = (sensor >> 0) & 0xFF;
-#endif
+#endif // UseWISP && UseSENSOR
 
-#if UseADC
+#if UseWISP && UseADC
+        my_adcReadyCallback(ADC_critRead());
+
         wispData.epcBuf[5] = (temperature >> 8) & 0xFF;
         wispData.epcBuf[6] = (temperature >> 0) & 0xFF;
-#endif
+#endif // UseWISP && UseADC
 
         // WAIT FOR TIMER
         while (!go) {
@@ -419,7 +439,9 @@ void main(void) {
         if (((i++) % (1 + n_failed)) == 0) {
             i = 1;
 
+#if UseWISP
             WISP_doRFID();
+#endif // UseWISP
         }
     }
 }
