@@ -63,7 +63,6 @@ inline void shiftWindow(void) {
 
 #define CEIL_DIV(A, B)  ((((A) - 1) / (B)) + 1)
 
-
 // Transmission period is defined by Period and Multiplier, with Period <= 2sec
 #define Transmission_Period         (LP_LSDLY_1S)       // 32kHz ticks (multiple of Transmission_Timer_Period)
 #define Transmission_Timer_Period   (LP_LSDLY_1S)       // 32kHz ticks (<= 2sec)
@@ -291,7 +290,7 @@ void INT_Timer2A0(void) {
     m[m_idx++] = (temperature >> 0) & 0xFF;
 #endif // UseADC
 
-    if (!wisp_quality) {
+    if (1 || !wisp_quality) {
         BITSET(P3OUT, PIN_AUX1); // RTS
 
         UART_setClock();
