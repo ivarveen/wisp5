@@ -16,7 +16,7 @@ WISP_dataStructInterface_t wispData;
 #define UseWISP                     (1) // Use WISP communication channel
 #define UseBLE                      (1) // Use BLE communication channel
 
-#define UseBACKOFF                  (0) // Use WISP back-off mechanism
+#define UseBACKOFF                  (1) // Use WISP back-off mechanism
 
 #define UseRN16                     (1) // Use RN16 count as quality metric
 #define UseACK                      (1) // Use ACK count as quality metric
@@ -40,7 +40,7 @@ volatile uint16_t ackwindow[WINDOWSIZE] = { 0 };
 volatile uint16_t rnwindow[WINDOWSIZE] = { 0 };
 volatile uint8_t window_index = 0;
 
-volatile uint16_t n_failed = 0;
+volatile uint16_t n_skip = 0;
 volatile uint8_t use_wisp = 1;
 
 #if UseSENSOR
@@ -77,7 +77,7 @@ inline void shiftWindow(void) {
 #define Window_Timer_Period         (LP_LSDLY_1S)       // 32kHz ticks (<= 2sec)
 #define Window_ForceWISP_Period     (5)                 // #transmissions
 
-#define Backoff_Maximum_Period      (10)                // #Transmission_Period intervals
+#define Backoff_Maximum_Period      (10)                 // #Transmission_Period intervals
 
 /**
  * This function is called by WISP FW after a successful RN16 transmission
@@ -175,7 +175,7 @@ volatile uint16_t go = 0; // use counter instead of on/off to detect overrun/ove
 #pragma vector=TIMER2_A0_VECTOR // Interval
 __interrupt
 void INT_Timer2A0(void) {
-    static uint16_t multiplier_count = 0;
+    static uint8_t rand_idx = 0;
 
     TA2CCR0 += Transmission_Timer_Period;
 
@@ -187,7 +187,7 @@ void INT_Timer2A0(void) {
     ADC_asyncRead(my_adcReadyCallback);
 #endif // UseADC
 
-#if UseBACKOFF || UseBLE
+#if UseBLE || UseBACKOFF
     // EVALUATE RFID STATUS
 #if UseACK
     uint16_t acksum = 0;
@@ -207,7 +207,7 @@ void INT_Timer2A0(void) {
         rnwindow[i - 1] = 0;
 #endif // UseRN16
     }
-#endif // UseBACKOFF
+#endif // 0
 
 #if UseWISP
     acksum = ackwindow[0];
@@ -217,6 +217,7 @@ void INT_Timer2A0(void) {
 #endif // UseWISP
 
     uint8_t wisp_quality = 0;
+    //wisp_quality = acksum;
 
 #if 0 && UseRN16 && UseACK
     if ((rnsum > 0) && (acksum >= rnsum)) {
@@ -249,10 +250,6 @@ void INT_Timer2A0(void) {
 #endif // UseBLE && UseUART
         BITSET(PLED2OUT, PIN_LED2);
 
-#if UseBACKOFF
-        n_failed = 0;
-#endif // UseBACKOFF
-
 #if UseBLE && UseGPIO
         BITSET(P3OUT, PIN_AUX2);
         __delay_cycles(75 * 16);
@@ -266,9 +263,17 @@ void INT_Timer2A0(void) {
         BITCLR(PLED2OUT, PIN_LED2);
 
 #if UseBACKOFF
-        n_failed += 1;
-        if (n_failed > Backoff_Maximum_Period)
-            n_failed = Backoff_Maximum_Period;
+        if (n_skip == 0) {
+            // Pick number from static random number table
+            uint8_t rand = *((uint8_t*) (INFO_WISP_RAND_TBL + rand_idx));
+            rand = (rand & 0x3) + (rand & 0x31);
+            rand = rand % Backoff_Maximum_Period;
+
+            n_skip = rand;
+
+            rand_idx =
+                    (++rand_idx < (NUM_RN16_2_STORE << 1)) ?: 0;
+        }
 #endif // UseBACKOFF
 
 #if UseBLE && UseGPIO
@@ -277,6 +282,8 @@ void INT_Timer2A0(void) {
         BITCLR(P3OUT, PIN_AUX1);
 #endif // UseBLE && UseGPIO
     }
+
+    use_wisp = !!wisp_quality;
 
 #if UseBLE && UseUART
 
@@ -305,7 +312,7 @@ void INT_Timer2A0(void) {
 
 #endif // UseBLE && UseUART
 
-#endif // UseBACKOFF
+#endif // UseBLE || UseBACKOFF
 
     go = 1;
 
@@ -435,12 +442,15 @@ void main(void) {
         go = 0;
 
         // enable WISP
-        if (((i++) % (1 + n_failed)) == 0) {
-            i = 1;
+        //if (((i++) % (1 + n_skip)) == 0) {
+        if (0 == n_skip) {
+            //    i = 1;
 
 #if UseWISP
             WISP_doRFID();
 #endif // UseWISP
+        } else {
+            n_skip--;
         }
     }
 }
