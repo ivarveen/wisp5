@@ -208,7 +208,7 @@
     P3OUT = 0x00;\
     P4OUT = 0x00;\
     PJOUT = 0x00;\
-    P1DIR = ~PIN_RX_BITLINE;\
+    P1DIR = (~PIN_AUX3 & ~PIN_RX_BITLINE);\
     PJDIR = 0xFF;\
     P2DIR = ~PIN_RX;\
     P3DIR = 0xFF;\

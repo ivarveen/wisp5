@@ -58,9 +58,8 @@ void WISP_init(void) {
     CSCTL1 = DCOFSEL_0; //1MHz
     CSCTL2 = SELA__VLOCLK + SELS_3 + SELM_3;
     CSCTL3 = DIVA_0 + DIVS_0 + DIVM_0;
-	BITCLR(CSCTL6 , (MODCLKREQEN|SMCLKREQEN|MCLKREQEN));
-	BITSET(CSCTL6 , ACLKREQEN);
-
+    //BITCLR(CSCTL6 , (MODCLKREQEN|SMCLKREQEN|MCLKREQEN));
+    //BITSET(CSCTL6 , ACLKREQEN);
 
     // Initialize Gen2 standard memory banks
     RWData.EPCBankPtr = &dataBuf[0];                    // volatile
