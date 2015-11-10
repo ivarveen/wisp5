@@ -89,7 +89,7 @@ void my_rn16Callback(void) {
 }
 #endif
 
-/** 
+/**
  * This function is called by WISP FW after a successful ACK reply
  *
  */
@@ -124,7 +124,7 @@ void my_writeCallback(void) {
     asm(" NOP");
 }
 
-/** 
+/**
  * This function is called by WISP FW after a successful BlockWrite
  *  command decode
  *
