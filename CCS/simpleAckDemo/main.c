@@ -23,12 +23,13 @@ WISP_dataStructInterface_t wispData;
 #define UseSENSOR                   (1) // Use time-sensor value
 #define UseADC                      (1) // Use ADC/temperature sensor
 #define UseUART                     (1) // Use UART communication with BLE
+#define UseLEDs                     (0) // Disable LEDs
 
 #if !UseUART
 #define UseGPIO                     (1) // Use GPIO communication with BLE
 #endif
 
-#if 1
+#if UseLEDs
 #undef PIN_LED2
 #define PIN_LED2 0x00
 #undef PIN_LED1
@@ -77,7 +78,7 @@ inline void shiftWindow(void) {
 #define Window_Timer_Period         (LP_LSDLY_1S)       // 32kHz ticks (<= 2sec)
 #define Window_ForceWISP_Period     (5)                 // #transmissions
 
-#define Backoff_Maximum_Period      (10)                 // #Transmission_Period intervals
+#define Backoff_Maximum_Period      (10)                // #Transmission_Period intervals
 
 /**
  * This function is called by WISP FW after a successful RN16 transmission
@@ -133,9 +134,11 @@ void my_blockWriteCallback(void) {
     asm(" NOP");
 }
 
+#if UseADC
 void my_adcReadyCallback(uint16_t raw) {
     temperature = ADC_rawToTemperature(raw);
 }
+#endif
 
 void start_intervalClock(void) {
     //TA2CTL &= ~(TAIFG); // reset interrupt? might introduce timing related issues (i.e. calling this function while an interrupt is pending)
